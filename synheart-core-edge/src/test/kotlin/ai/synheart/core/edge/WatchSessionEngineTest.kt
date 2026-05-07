@@ -1,0 +1,148 @@
+package ai.synheart.core.edge
+
+import ai.synheart.core.edge.engine.WatchSessionEngine
+import ai.synheart.core.edge.engine.WatchSessionState
+import ai.synheart.core.edge.models.*
+import ai.synheart.session.BiosignalProvider
+import ai.synheart.session.BiosignalSample
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.test.*
+import org.junit.Assert.*
+import org.junit.Test
+
+class WatchSessionEngineTest {
+
+    /** No-op BiosignalProvider for state-machine and lifecycle tests. */
+    private class FakeBioProvider : BiosignalProvider {
+        override val isAvailable: Boolean = true
+        override val name: String = "fake"
+        override fun startStreaming(onSample: (BiosignalSample) -> Unit) {}
+        override fun stopStreaming() {}
+    }
+
+    private fun testConfig(
+        sessionId: String = "test-1",
+        mode: String = "focus",
+        origin: SessionOrigin = SessionOrigin.PHONE,
+        kind: SessionKind = SessionKind.FOCUS,
+    ) = SessionConfig(
+        sessionId = sessionId,
+        mode = mode,
+        durationSec = 60,
+        profile = ComputeProfile(windowSec = 10, emitIntervalSec = 5),
+        origin = origin,
+        kind = kind,
+    )
+
+    @Test
+    fun `start transitions to RUNNING`() = runTest {
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        assertEquals(WatchSessionState.IDLE, engine.state.value.watchState)
+
+        engine.startSession(testConfig())
+        advanceTimeBy(100)
+        runCurrent()
+
+        assertEquals(WatchSessionState.RUNNING, engine.state.value.watchState)
+
+        engine.stopSession()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `stop transitions to IDLE`() = runTest {
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        engine.startSession(testConfig())
+        advanceTimeBy(100)
+        runCurrent()
+
+        engine.stopSession()
+        advanceUntilIdle()
+
+        assertEquals(WatchSessionState.IDLE, engine.state.value.watchState)
+    }
+
+    @Test
+    fun `start emits started event`() = runTest {
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        val events = mutableListOf<SessionEvent>()
+        val job = launch { engine.events.collect { events.add(it) } }
+
+        engine.startSession(testConfig())
+        advanceTimeBy(100)
+        runCurrent()
+
+        assertTrue(events.any { it is SessionEvent.Started && it.sessionId == "test-1" })
+
+        engine.stopSession()
+        advanceUntilIdle()
+        job.cancel()
+    }
+
+    @Test
+    fun `double start ignored`() = runTest {
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        val events = mutableListOf<SessionEvent>()
+        val job = launch { engine.events.collect { events.add(it) } }
+
+        engine.startSession(testConfig())
+        engine.startSession(testConfig())
+        advanceTimeBy(100)
+        runCurrent()
+
+        assertEquals(1, events.count { it is SessionEvent.Started })
+
+        engine.stopSession()
+        advanceUntilIdle()
+        job.cancel()
+    }
+
+    @Test
+    fun `state transition guard works`() {
+        assertFalse(WatchSessionState.IDLE.canTransitionTo(WatchSessionState.RUNNING))
+        assertTrue(WatchSessionState.IDLE.canTransitionTo(WatchSessionState.STARTING))
+        assertTrue(WatchSessionState.RUNNING.canTransitionTo(WatchSessionState.STOPPING))
+        assertFalse(WatchSessionState.STOPPING.canTransitionTo(WatchSessionState.RUNNING))
+    }
+
+    @Test
+    fun `session kind tracks config`() = runTest {
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        engine.startSession(testConfig(kind = SessionKind.NAP))
+        advanceTimeBy(100)
+        runCurrent()
+
+        assertEquals(SessionKind.NAP, engine.state.value.sessionKind)
+
+        engine.stopSession()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `artifact envelope creation`() {
+        val envelope = HsiArtifactEnvelope.wrap(
+            sessionId = "test-session",
+            seq = 1,
+            hsiJson = """{"test": true}""",
+            deliveryMode = DeliveryMode.REALTIME,
+            origin = SessionOrigin.PHONE,
+            kind = SessionKind.FOCUS,
+        )
+        assertTrue(envelope.artifactId.startsWith("hsi_"))
+        assertEquals("test-session", envelope.sessionId)
+        assertEquals(1, envelope.seq)
+        assertEquals("1.1", envelope.schemaVersion)
+        assertTrue(envelope.payloadHashSha256.isNotEmpty())
+        assertEquals(DeliveryMode.REALTIME, envelope.deliveryMode)
+    }
+
+    @Test
+    fun `delivery mode derived from origin`() {
+        val phoneConfig = testConfig(origin = SessionOrigin.PHONE)
+        assertEquals(DeliveryMode.REALTIME, phoneConfig.deliveryMode)
+
+        val edgeConfig = testConfig(origin = SessionOrigin.EDGE)
+        assertEquals(DeliveryMode.PASSIVE_SYNC, edgeConfig.deliveryMode)
+    }
+}
