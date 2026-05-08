@@ -10,14 +10,55 @@ permissions:
 jobs:
   close:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.author_association != 'OWNER' &&
-        github.event.pull_request.author_association != 'MEMBER' &&
-        github.event.pull_request.author_association != 'COLLABORATOR'
     steps:
-      - name: Close PR with explanation
+      - name: Close PR if author is not on the team
         uses: actions/github-script@v7
+        env:
+          ORG_READ_TOKEN: ${{ secrets.ORG_READ_TOKEN }}
         with:
           script: |
+            const pr = context.payload.pull_request;
+            const login = pr.user.login;
+            const association = pr.author_association;
+
+            // Trust the webhook payload when it already reports a member-like
+            // association. Note: for users with PRIVATE org membership, this
+            // field can arrive as NONE/CONTRIBUTOR even though the org API
+            // resolves it to MEMBER — hence the runtime fallback below.
+            if (["OWNER", "MEMBER", "COLLABORATOR"].includes(association)) {
+              core.info(`Skipping: author_association=${association} for @${login}`);
+              return;
+            }
+
+            // Runtime check against the org membership API. The default
+            // GITHUB_TOKEN cannot see private memberships, so this needs a
+            // PAT (classic, scope: read:org) stored as ORG_READ_TOKEN.
+            const orgReadToken = process.env.ORG_READ_TOKEN;
+            if (orgReadToken) {
+              const { getOctokit } = require("@actions/github");
+              const orgClient = getOctokit(orgReadToken);
+              try {
+                await orgClient.rest.orgs.checkMembershipForUser({
+                  org: context.repo.owner,
+                  username: login,
+                });
+                core.info(`Skipping: @${login} is an org member of ${context.repo.owner} (verified via ORG_READ_TOKEN)`);
+                return;
+              } catch (err) {
+                if (err.status === 404) {
+                  core.info(`@${login} is not a member of ${context.repo.owner}`);
+                } else if (err.status === 302) {
+                  core.warning(`ORG_READ_TOKEN cannot view membership for @${login} (302). Treating as external.`);
+                } else {
+                  core.warning(`Membership check for @${login} errored: ${err.status} ${err.message}. Treating as external.`);
+                }
+              }
+            } else {
+              core.warning("ORG_READ_TOKEN secret is not set; private org members will be misclassified as external. Add a PAT with read:org scope.");
+            }
+
+            core.info(`Closing PR #${pr.number} from external author @${login} (association=${association})`);
+
             const body = [
               "Hi @" + context.payload.pull_request.user.login + ", thanks for your interest in Synheart.",
               "",
@@ -33,13 +74,13 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              issue_number: pr.number,
               body,
             });
 
             await github.rest.pulls.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
+              pull_number: pr.number,
               state: "closed",
             });
