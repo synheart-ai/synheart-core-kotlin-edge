@@ -48,6 +48,11 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    // Real org.json impl for unit tests — the android.jar version is a stub
+    // that throws RuntimeException("Stub!") on every method call. Without
+    // this, any test that constructs a JSONObject (e.g. ComputeProfile
+    // fromJson tests) fails at runtime.
+    testImplementation("org.json:json:20240303")
 }
 
 publishing {
