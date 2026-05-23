@@ -197,4 +197,82 @@ class WatchSessionEngineTest {
         )
         assertEquals(EdgeMode.CANONICAL, withoutEdgeMode.edgeMode)
     }
+
+    // ── pause / resume (RFC §8.1 + pause extension) ──────────────────────
+
+    @Test
+    fun `pause transitions RUNNING to PAUSED`() = runTest {
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        engine.startSession(testConfig())
+        advanceTimeBy(100); runCurrent()
+        assertEquals(WatchSessionState.RUNNING, engine.state.value.watchState)
+
+        engine.pauseSession()
+        runCurrent()
+        assertEquals(WatchSessionState.PAUSED, engine.state.value.watchState)
+
+        engine.stopSession()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `pause from IDLE is a no-op`() = runTest {
+        // canTransitionTo guards this; calling pause on a non-running
+        // session must not move state or touch internal counters.
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        engine.pauseSession()
+        runCurrent()
+        assertEquals(WatchSessionState.IDLE, engine.state.value.watchState)
+    }
+
+    @Test
+    fun `resume from PAUSED returns to RUNNING`() = runTest {
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        engine.startSession(testConfig())
+        advanceTimeBy(100); runCurrent()
+
+        engine.pauseSession()
+        runCurrent()
+        assertEquals(WatchSessionState.PAUSED, engine.state.value.watchState)
+
+        engine.resumeSession()
+        runCurrent()
+        assertEquals(WatchSessionState.RUNNING, engine.state.value.watchState)
+
+        engine.stopSession()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `pause then stop transitions PAUSED to IDLE`() = runTest {
+        // Pause -> Stop is the cancel-from-paused path; must complete to
+        // IDLE without going through RUNNING again.
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        engine.startSession(testConfig())
+        advanceTimeBy(100); runCurrent()
+        engine.pauseSession()
+        runCurrent()
+        assertEquals(WatchSessionState.PAUSED, engine.state.value.watchState)
+
+        engine.stopSession()
+        advanceUntilIdle()
+        assertEquals(WatchSessionState.IDLE, engine.state.value.watchState)
+    }
+
+    @Test
+    fun `resume without pause is a no-op`() = runTest {
+        // canTransitionTo allows PAUSED -> RUNNING only, so calling
+        // resume on a RUNNING session must not double-restart loops or
+        // mutate startedAtMs.
+        val engine = WatchSessionEngine(provider = FakeBioProvider(), scope = this)
+        engine.startSession(testConfig())
+        advanceTimeBy(100); runCurrent()
+
+        engine.resumeSession()
+        runCurrent()
+        assertEquals(WatchSessionState.RUNNING, engine.state.value.watchState)
+
+        engine.stopSession()
+        advanceUntilIdle()
+    }
 }

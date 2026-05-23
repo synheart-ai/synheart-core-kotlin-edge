@@ -1,17 +1,28 @@
 package ai.synheart.core.edge.engine
 
-/** RFC §8.1 — Watch session state machine. */
+/**
+ * RFC §8.1 — Watch session state machine.
+ *
+ * `PAUSED` is a host-driven transient state for breath / interrupt / call /
+ * any other UX moment the user wants to suspend the session without ending
+ * it. Engine loops self-exit on the next tick when state != RUNNING; resume
+ * restarts the loops and adjusts `startedAtMs` so elapsed-time accounting
+ * skips the paused interval.
+ */
 enum class WatchSessionState {
-    IDLE, STARTING, RUNNING, STOPPING, SYNCING, ERROR;
+    IDLE, STARTING, RUNNING, PAUSED, STOPPING, SYNCING, ERROR;
 
-    /** Valid state transitions per RFC §8.1. */
+    /** Valid state transitions per RFC §8.1 + pause extension. */
     fun canTransitionTo(next: WatchSessionState): Boolean = when (this to next) {
         IDLE to STARTING,
         STARTING to RUNNING,
         STARTING to ERROR,
+        RUNNING to PAUSED,
         RUNNING to STOPPING,
         RUNNING to SYNCING,
         RUNNING to ERROR,
+        PAUSED to RUNNING,
+        PAUSED to STOPPING,
         STOPPING to IDLE,
         STOPPING to SYNCING,
         SYNCING to IDLE,

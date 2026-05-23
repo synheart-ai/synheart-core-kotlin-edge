@@ -72,6 +72,10 @@ class WatchSessionEngine(
     private var elapsedJob: Job? = null
     private var durationJob: Job? = null
     private var motionJob: Job? = null
+    /** Timestamp when the session entered PAUSED. Used by [resumeSession]
+     *  to advance [startedAtMs] so the paused interval doesn't count
+     *  against elapsed/remaining. */
+    private var pausedAtMs: Long = 0
 
     /**
      * Start a session. If [requestedMode] is null the engine resolves it: try
@@ -125,8 +129,13 @@ class WatchSessionEngine(
 
         // Start the biosignal provider. Each sample either feeds the runtime
         // (COMPUTE_LOCAL) or is surfaced as-is for the host app to relay (STREAM).
+        // The provider keeps streaming through PAUSED state (turning the HR
+        // sensor on/off would hammer the radio for short pauses) but the
+        // callback short-circuits so paused samples don't accumulate into
+        // the runtime or move UI state.
         try {
             provider.startStreaming { sample ->
+                if (_state.value.watchState != WatchSessionState.RUNNING) return@startStreaming
                 if (mode == EngineMode.COMPUTE_LOCAL) {
                     runtimeBridge?.let { bridge ->
                         bridge.pushHr(sample.timestampMs, sample.bpm)
@@ -151,10 +160,12 @@ class WatchSessionEngine(
         }
 
         // Motion is only piped to runtime in COMPUTE_LOCAL mode. In STREAM mode,
-        // the host app can capture motion separately if it needs it.
+        // the host app can capture motion separately if it needs it. Paused
+        // samples are ignored — same rationale as the HR provider gate.
         if (mode == EngineMode.COMPUTE_LOCAL && motionSensor != null && motionSensor.isAvailable) {
             motionJob = scope.launch {
                 motionSensor.motionFlow().collect { sample ->
+                    if (_state.value.watchState != WatchSessionState.RUNNING) return@collect
                     runtimeBridge?.pushAccel(sample.timestampMs, sample.x, sample.y, sample.z)
                 }
             }
@@ -204,6 +215,87 @@ class WatchSessionEngine(
         if (!_state.value.watchState.canTransitionTo(WatchSessionState.STOPPING)) return
         transition(WatchSessionState.STOPPING)
         finishSession()
+    }
+
+    /**
+     * Pause an active session. Loops self-exit on their next tick (state !=
+     * RUNNING guard); the biosignal provider keeps streaming through the
+     * pause but its samples are dropped at the engine boundary so the
+     * runtime doesn't accumulate paused-window data. Re-entrant; transitions
+     * other than RUNNING → PAUSED are no-ops.
+     *
+     * Vibration / haptic feedback is intentionally NOT triggered here — that's
+     * a UX decision the host makes by observing [state]. Keeping it out of
+     * the SDK avoids hard-wiring a Vibrator service into a library that ships
+     * on every Synheart-edge consumer.
+     */
+    fun pauseSession() {
+        if (!_state.value.watchState.canTransitionTo(WatchSessionState.PAUSED)) return
+        pausedAtMs = System.currentTimeMillis()
+        transition(WatchSessionState.PAUSED)
+        // Frame / elapsed loops will see state != RUNNING and exit on the
+        // next iteration; durationJob is left as-is and rescheduled on
+        // resume (it's an absolute one-shot delay that would fire at the
+        // wrong wall-clock time after pause adjustment).
+        durationJob?.cancel()
+    }
+
+    /**
+     * Resume a paused session. Advances [startedAtMs] by the paused
+     * duration so the elapsed counter skips the gap, then re-launches the
+     * frame / elapsed / duration loops. No-op if not currently PAUSED.
+     */
+    fun resumeSession() {
+        if (!_state.value.watchState.canTransitionTo(WatchSessionState.RUNNING)) return
+        val cfg = config ?: return
+        val now = System.currentTimeMillis()
+        val pausedDuration = (now - pausedAtMs).coerceAtLeast(0)
+        startedAtMs += pausedDuration
+        pausedAtMs = 0
+        transition(WatchSessionState.RUNNING)
+        relaunchEngineLoops(cfg)
+    }
+
+    /**
+     * Restart the time-driven loops (frame emission, elapsed counter,
+     * duration backstop) using the current [startedAtMs] and [config].
+     * Called from [resumeSession]; not called from [startSession] which
+     * launches them inline so the start-up ordering stays explicit.
+     */
+    private fun relaunchEngineLoops(cfg: SessionConfig) {
+        frameJob?.cancel()
+        elapsedJob?.cancel()
+        durationJob?.cancel()
+        frameJob = scope.launch {
+            while (isActive) {
+                delay(cfg.profile.emitIntervalSec * 1000L)
+                if (_state.value.watchState != WatchSessionState.RUNNING) break
+                emitFrame()
+            }
+        }
+        elapsedJob = scope.launch {
+            while (isActive) {
+                delay(1000)
+                if (_state.value.watchState != WatchSessionState.RUNNING) break
+                val elapsed = ((System.currentTimeMillis() - startedAtMs) / 1000).toInt()
+                _state.update {
+                    it.copy(
+                        elapsedSec = elapsed,
+                        remainingSec = (cfg.durationSec - elapsed).coerceAtLeast(0),
+                    )
+                }
+            }
+        }
+        val elapsedSec = ((System.currentTimeMillis() - startedAtMs) / 1000).toInt()
+        val remainingSec = (cfg.durationSec - elapsedSec).coerceAtLeast(0)
+        if (remainingSec > 0) {
+            durationJob = scope.launch {
+                delay(remainingSec * 1000L)
+                stopSession()
+            }
+        } else {
+            stopSession()
+        }
     }
 
     /** Acknowledge artifacts from phone ACK. */
