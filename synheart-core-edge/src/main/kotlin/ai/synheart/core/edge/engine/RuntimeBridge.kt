@@ -10,7 +10,7 @@ import com.sun.jna.Pointer
  * All methods returning [Pointer] allocate heap memory that MUST be freed
  * with [synheart_core_edge_free_string]. Returns null on error.
  */
-interface RuntimeNative : Library {
+internal interface RuntimeNative : Library {
     companion object {
         val INSTANCE: RuntimeNative? = try {
             Native.load("synheart_core_runtime", RuntimeNative::class.java)
@@ -34,9 +34,11 @@ interface RuntimeNative : Library {
 }
 
 /**
- * Configuration for the edge pipeline.
+ * Configuration for the edge pipeline. Internal — only [RuntimeBridge.createIfAvailable]
+ * consumes this, and it's a translation step from the host-facing
+ * [ai.synheart.core.edge.models.SessionConfig] to the native FFI JSON.
  */
-data class RuntimeConfig(
+internal data class RuntimeConfig(
     val windowMs: Long = 60_000,
     val stepMs: Long = 5_000,
     val subjectId: String,
@@ -111,25 +113,28 @@ class RuntimeBridge private constructor(private val handle: Pointer) {
         return json
     }
 
-    fun lastQuality(): String? {
+    // Diagnostic accessors below — exposed by the native ABI but not used by
+    // any current consumer of the OSS SDK. Kept `internal` so they remain
+    // available for in-package use without enlarging the public API surface.
+    internal fun lastQuality(): String? {
         val ptr = native.synheart_core_edge_last_quality(handle) ?: return null
         val json = ptr.getString(0)
         native.synheart_core_edge_free_string(ptr)
         return json
     }
 
-    fun lastPreprocessed(): String? {
+    internal fun lastPreprocessed(): String? {
         val ptr = native.synheart_core_edge_last_preprocessed(handle) ?: return null
         val json = ptr.getString(0)
         native.synheart_core_edge_free_string(ptr)
         return json
     }
 
-    fun frameCount(): Long {
+    internal fun frameCount(): Long {
         return native.synheart_core_edge_frame_count(handle)
     }
 
-    fun reset() {
+    internal fun reset() {
         native.synheart_core_edge_reset(handle)
     }
 

@@ -30,20 +30,22 @@ android {
 dependencies {
     // Session lifecycle + BiosignalProvider abstraction (mirrors what the
     // phone SDK uses). Pulls SessionEngine + BiosignalSample +
-    // HealthConnectBiosignalProvider.
+    // HealthConnectBiosignalProvider — and transitively pulls
+    // synheart-wear (HealthConnectAdapter), so no separate dep needed here.
     implementation("ai.synheart:synheart-session:0.1.0")
-    // Multi-device wearable SDK; provides HealthConnectAdapter that
-    // HealthConnectBiosignalProvider wraps. Required when the watch app uses
-    // the Health Connect path on Wear OS 3+.
-    implementation("ai.synheart:synheart-wear:0.3.0")
 
-    implementation("androidx.health:health-services-client:1.1.0-alpha05")
+    // Play Services Wearable Data Layer — consumed by relay/PhoneRelay.kt
+    // (DataClient + MessageClient + NodeClient) and the WearableListenerService
+    // base class in PhoneListenerService.kt.
     implementation("com.google.android.gms:play-services-wearable:18.2.0")
+
+    // JNA — FFI binding to synheart_core_edge_*.so (RuntimeBridge.kt).
+    // ~2MB AAR; mandatory for the native runtime boundary.
     implementation("net.java.dev.jna:jna:5.14.0@aar")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     // Provides `Tasks.await()` extension for Play Services tasks
-    // consumed by `relay/PhoneRelay.kt` (Wearable Data Layer client).
+    // consumed by relay/PhoneRelay.kt.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
