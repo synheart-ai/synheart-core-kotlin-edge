@@ -6,20 +6,52 @@ import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 import org.json.JSONObject
-import ai.synheart.core.edge.SynheartWatchApp
+import ai.synheart.core.edge.engine.WatchSessionEngine
 import ai.synheart.core.edge.models.SessionConfig
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Background service that receives commands from the phone app
- * even when the watch app is not in the foreground.
- * Also handles DataClient changes for preset sync.
+ * Background service that receives commands from the phone app even when
+ * the watch app is not in the foreground. Also handles DataClient changes
+ * for preset sync.
  *
- * Commands are handled either via [onCommandReceived] (when MainActivity has set it)
- * or directly using the Application's shared engine/relay so sessions can start
- * when the app has never been opened or was killed.
+ * Commands are handled either via [onCommandReceived] (when the host
+ * Activity has set it for foreground delivery) or routed to a host-
+ * supplied [Bindings] so sessions can start when the app has never been
+ * opened or was killed.
+ *
+ * ### Host setup
+ *
+ * The OSS library does not own the [WatchSessionEngine] / [PhoneRelay]
+ * singletons — the host (e.g. the Wear OS app's `Application` subclass)
+ * does. To enable background command handling, set [bindings] from the
+ * host's `Application.onCreate`:
+ *
+ * ```kotlin
+ * class MyWearApp : Application() {
+ *   override fun onCreate() {
+ *     super.onCreate()
+ *     PhoneListenerService.bindings = object : PhoneListenerService.Bindings {
+ *       override val engine = myEngineSingleton
+ *       override val relay = myRelaySingleton
+ *       override val appScope = myApplicationScope
+ *     }
+ *   }
+ * }
+ * ```
+ *
+ * If [bindings] is null and no Activity callback is set, background
+ * commands are logged and dropped — safe default, no crashes.
  */
 class PhoneListenerService : WearableListenerService() {
+
+    /** Contract the host supplies so the service can route background commands. */
+    interface Bindings {
+        val engine: WatchSessionEngine
+        val relay: PhoneRelay
+        val appScope: CoroutineScope
+    }
 
     companion object {
         private const val TAG = "PhoneListenerService"
@@ -27,6 +59,14 @@ class PhoneListenerService : WearableListenerService() {
         var onCommandReceived: ((JSONObject) -> Unit)? = null
         /** Callback for preset data changes. Set by the Activity. */
         var onPresetsDataChanged: ((ByteArray) -> Unit)? = null
+        /**
+         * Host-supplied bindings for background command delivery. When null
+         * (the default) and no [onCommandReceived] callback is registered,
+         * background commands are dropped with a warning instead of
+         * starting / stopping a session against an unknown engine. The host
+         * sets this from its `Application.onCreate`.
+         */
+        var bindings: Bindings? = null
     }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
@@ -42,27 +82,29 @@ class PhoneListenerService : WearableListenerService() {
             return
         }
 
-        // Otherwise handle here so sessions work when app is not open
-        val app = application as? SynheartWatchApp ?: return
-        val engine = app.engine
-        val relay = app.relay
+        // Background path — requires the host to have installed Bindings.
+        val b = bindings
+        if (b == null) {
+            Log.w(TAG, "Dropping background command $command: no Bindings installed")
+            return
+        }
 
         when (command) {
             "start_session" -> {
                 val config = SessionConfig.fromPhoneCommand(json)
                 Log.d(TAG, "Starting session from phone: ${config.sessionId}")
-                engine.startSession(config)
+                b.engine.startSession(config)
             }
-            "stop_session" -> engine.stopSession()
-            "sync_presets" -> relay.updatePresetsFromMessage(json)
+            "stop_session" -> b.engine.stopSession()
+            "sync_presets" -> b.relay.updatePresetsFromMessage(json)
             "artifact_ack" -> {
-                relay.handleAck(json)
-                engine.acknowledgeArtifacts(
+                b.relay.handleAck(json)
+                b.engine.acknowledgeArtifacts(
                     (0 until (json.optJSONArray("artifact_ids")?.length() ?: 0))
                         .map { json.getJSONArray("artifact_ids").getString(it) }
                 )
             }
-            "sync_response" -> app.appScope.launch { relay.handleSyncResponse(json) }
+            "sync_response" -> b.appScope.launch { b.relay.handleSyncResponse(json) }
         }
     }
 
