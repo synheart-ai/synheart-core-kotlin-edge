@@ -145,4 +145,56 @@ class WatchSessionEngineTest {
         val edgeConfig = testConfig(origin = SessionOrigin.EDGE)
         assertEquals(DeliveryMode.PASSIVE_SYNC, edgeConfig.deliveryMode)
     }
+
+    // ── ComputeProfile.edgeMode (edge-tiering RFC §3.2) ──────────────────
+
+    @Test
+    fun `ComputeProfile defaults edgeMode to CANONICAL`() {
+        // Pre-RFC callers constructed ComputeProfile() with no third arg.
+        // Default MUST stay CANONICAL so back-compat callers behave as before.
+        assertEquals(EdgeMode.CANONICAL, ComputeProfile().edgeMode)
+    }
+
+    @Test
+    fun `EdgeMode wire form is snake_case lowercase`() {
+        // The Rust side (core-runtime SynheartConfig::from_value) parses
+        // these exact strings. Any drift breaks the producer-side
+        // session_role selection silently.
+        assertEquals("off", EdgeMode.OFF.toWire())
+        assertEquals("shadow", EdgeMode.SHADOW.toWire())
+        assertEquals("canonical", EdgeMode.CANONICAL.toWire())
+    }
+
+    @Test
+    fun `EdgeMode fromWire parses canonical wire strings`() {
+        assertEquals(EdgeMode.OFF, EdgeMode.fromWire("off"))
+        assertEquals(EdgeMode.SHADOW, EdgeMode.fromWire("shadow"))
+        assertEquals(EdgeMode.CANONICAL, EdgeMode.fromWire("canonical"))
+    }
+
+    @Test
+    fun `EdgeMode unknown wire string returns null`() {
+        // Forward-compat: unknown strings (future enum values, typos)
+        // return null so callers can fall back deliberately rather than
+        // crash.
+        assertNull(EdgeMode.fromWire("tomorrows_unknown_mode"))
+    }
+
+    @Test
+    fun `ComputeProfile fromJson reads edge_mode and defaults to CANONICAL when absent`() {
+        val withEdgeMode = ComputeProfile.fromJson(
+            org.json.JSONObject(
+                """{"window_sec":30,"emit_interval_sec":3,"edge_mode":"shadow"}"""
+            )
+        )
+        assertEquals(30, withEdgeMode.windowSec)
+        assertEquals(3, withEdgeMode.emitIntervalSec)
+        assertEquals(EdgeMode.SHADOW, withEdgeMode.edgeMode)
+
+        // Pre-RFC JSON (no edge_mode key) — falls back to CANONICAL.
+        val withoutEdgeMode = ComputeProfile.fromJson(
+            org.json.JSONObject("""{"window_sec":60,"emit_interval_sec":5}""")
+        )
+        assertEquals(EdgeMode.CANONICAL, withoutEdgeMode.edgeMode)
+    }
 }

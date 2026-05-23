@@ -5,12 +5,53 @@ import org.json.JSONObject
 data class ComputeProfile(
     val windowSec: Int = 60,
     val emitIntervalSec: Int = 5,
+    /**
+     * How the edge runtime's HSI should be reported relative to a paired
+     * phone (edge-tiering RFC §3.2). Forwarded to the native runtime as
+     * `compute_profile.edge_mode` in the FFI config JSON, where it controls
+     * the `session_role` stamped on `meta.synheart.compute`. Default
+     * [EdgeMode.CANONICAL] preserves pre-RFC behaviour (watch HSI is
+     * product-of-record).
+     */
+    val edgeMode: EdgeMode = EdgeMode.CANONICAL,
 ) {
     companion object {
         fun fromJson(json: JSONObject): ComputeProfile = ComputeProfile(
             windowSec = json.optInt("window_sec", 60),
             emitIntervalSec = json.optInt("emit_interval_sec", 5),
+            edgeMode = json.optString("edge_mode")
+                .takeIf { it.isNotEmpty() }
+                ?.let { EdgeMode.fromWire(it) }
+                ?: EdgeMode.CANONICAL,
         )
+    }
+}
+
+/**
+ * How the watch's edge HSI should be reported relative to a paired phone.
+ * Mirror of `EdgeMode` in `synheart-core-runtime`'s `SynheartConfig`. See
+ * edge-tiering RFC §3.2.
+ */
+enum class EdgeMode {
+    /** Edge runtime does not start. Watch streams raw samples to phone. */
+    OFF,
+    /** Edge runtime computes HSI; raw samples also stream to phone. Phone HSI
+     *  is canonical; edge envelopes carry `session_role: shadow`. */
+    SHADOW,
+    /** Edge HSI is product-of-record. Raw samples are not streamed. */
+    CANONICAL;
+
+    /** Wire form for the native runtime JSON (snake_case lowercased name). */
+    fun toWire(): String = name.lowercase()
+
+    companion object {
+        /** Parse the wire form used in JSON config + the §3.3 pairing advert. */
+        fun fromWire(s: String): EdgeMode? = when (s.lowercase()) {
+            "off" -> OFF
+            "shadow" -> SHADOW
+            "canonical" -> CANONICAL
+            else -> null
+        }
     }
 }
 

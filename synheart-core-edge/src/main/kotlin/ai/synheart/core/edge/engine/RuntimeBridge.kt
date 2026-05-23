@@ -42,6 +42,14 @@ data class RuntimeConfig(
     val subjectId: String,
     val sessionId: String,
     val behaviorEnabled: Boolean = false,
+    /**
+     * Forwarded to the native runtime as `compute_profile.edge_mode` (edge-
+     * tiering RFC §3.2). Drives the `session_role` stamped on
+     * `meta.synheart.compute` of every emitted HSI envelope. Defaults to
+     * [ai.synheart.core.edge.models.EdgeMode.CANONICAL].
+     */
+    val edgeMode: ai.synheart.core.edge.models.EdgeMode =
+        ai.synheart.core.edge.models.EdgeMode.CANONICAL,
 )
 
 /**
@@ -57,7 +65,20 @@ class RuntimeBridge private constructor(private val handle: Pointer) {
     companion object {
         fun createIfAvailable(config: RuntimeConfig): RuntimeBridge? {
             val lib = RuntimeNative.INSTANCE ?: return null
-            val configJson = """{"window_ms":${config.windowMs},"step_ms":${config.stepMs},"subject_id":"${config.subjectId}","session_id":"${config.sessionId}","behavior_enabled":${config.behaviorEnabled}}"""
+            // Nested `compute_profile` is read by core-runtime/SynheartConfig
+            // (edge-tiering RFC §3.2) and shapes the `session_role` stamped
+            // on every emitted HSI envelope. Pre-RFC native runtimes ignore
+            // the extra key, so this is forward-compatible.
+            val configJson = buildString {
+                append("{")
+                append("\"window_ms\":${config.windowMs},")
+                append("\"step_ms\":${config.stepMs},")
+                append("\"subject_id\":\"${config.subjectId}\",")
+                append("\"session_id\":\"${config.sessionId}\",")
+                append("\"behavior_enabled\":${config.behaviorEnabled},")
+                append("\"compute_profile\":{\"edge_mode\":\"${config.edgeMode.toWire()}\"}")
+                append("}")
+            }
             val handle = lib.synheart_core_edge_create(configJson) ?: return null
             return RuntimeBridge(handle)
         }

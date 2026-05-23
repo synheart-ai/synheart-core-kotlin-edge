@@ -93,6 +93,7 @@ class WatchSessionEngine(
             subjectId = "sub_watch",
             sessionId = config.sessionId,
             behaviorEnabled = false,
+            edgeMode = config.profile.edgeMode,
         ))
         this.mode = requestedMode ?: if (runtime != null) EngineMode.COMPUTE_LOCAL else EngineMode.STREAM
         this.runtimeBridge = if (mode == EngineMode.COMPUTE_LOCAL) runtime else null
