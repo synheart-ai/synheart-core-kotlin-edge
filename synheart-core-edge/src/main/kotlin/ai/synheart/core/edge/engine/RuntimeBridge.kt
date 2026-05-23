@@ -65,7 +65,11 @@ class RuntimeBridge private constructor(private val handle: Pointer) {
     private val native: RuntimeNative = RuntimeNative.INSTANCE!!
 
     companion object {
-        fun createIfAvailable(config: RuntimeConfig): RuntimeBridge? {
+        // `internal` because the only caller in this package is
+        // WatchSessionEngine; RuntimeConfig is itself internal (FFI detail).
+        // Marking createIfAvailable internal lets Kotlin's visibility rules
+        // pass without re-exposing RuntimeConfig.
+        internal fun createIfAvailable(config: RuntimeConfig): RuntimeBridge? {
             val lib = RuntimeNative.INSTANCE ?: return null
             // Nested `compute_profile` is read by core-runtime/SynheartConfig
             // (edge-tiering RFC §3.2) and shapes the `session_role` stamped
