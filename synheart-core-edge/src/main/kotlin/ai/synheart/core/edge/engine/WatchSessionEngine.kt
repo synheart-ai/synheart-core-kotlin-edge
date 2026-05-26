@@ -22,12 +22,8 @@ enum class EngineMode {
 /**
  * On-watch session engine with formal state machine (RFC §8.1).
  *
- * **Architecture (0.0.2):** biosignals come from a [BiosignalProvider]
- * (typically `HealthConnectBiosignalProvider` from synheart-session-kotlin,
- * which wraps synheart-wear-kotlin's HealthConnectAdapter). Motion is captured
- * locally since Health Connect doesn't stream raw IMU. Session lifecycle is
- * owned by this engine; the runtime owns all signal math when
- * `mode == EngineMode.COMPUTE_LOCAL`.
+ * Motion is captured locally since Health Connect doesn't stream raw IMU.
+ * The runtime owns signal math when `mode == EngineMode.COMPUTE_LOCAL`.
  */
 class WatchSessionEngine(
     private val provider: BiosignalProvider,

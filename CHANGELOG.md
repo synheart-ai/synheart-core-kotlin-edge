@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-05-26
+
+### Fixed
+- Gradle wrapper bumped to 8.11.1 so the Android Gradle Plugin's minimum
+  requirement is satisfied; previously a fresh clone failed with
+  "Minimum supported Gradle version is 8.11.1. Current version is 8.9".
+
+### Changed
+- Trimmed `WatchSessionEngine` KDoc to local code-level intent only.
+
 ## [0.0.1] - 2026-05-07
 
 Initial release. Watch-side SDK for Wear OS / Android, extracted from
