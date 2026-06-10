@@ -73,6 +73,16 @@ class PhoneRelay(context: Context) {
                 android.util.Log.w("PhoneRelay", "sendMessage failed to ${node.displayName}: ${e.message}")
             }
         }
+
+        // Drain the durable outbox at session boundaries. The artifact outbox
+        // survives an unreachable phone, but the push path only self-heals if
+        // something re-sends — and we now have connected node(s). Started
+        // catches up any backlog stranded from a prior session; Summary flushes
+        // this session's tail. Idempotent: the phone dedups on hsi_id and ACKs,
+        // which clears the outbox.
+        if (event is SessionEvent.Started || event is SessionEvent.Summary) {
+            retryPendingArtifacts()
+        }
     }
 
     /** Send a real-time HR sample to the phone. */
