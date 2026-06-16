@@ -1,9 +1,17 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
-    id("maven-publish")
-    id("signing")
+    id("com.vanniktech.maven.publish")
 }
+
+// Project-level coordinates so Gradle composite-build substitution can match
+// the requested Maven coordinate `ai.synheart:synheart-core-edge:<VERSION_NAME>`
+// to this included build. The vanniktech plugin reads the same GROUP /
+// VERSION_NAME / POM_* values from gradle.properties for the published POM.
+group = providers.gradleProperty("GROUP").get()
+version = providers.gradleProperty("VERSION_NAME").get()
 
 android {
     namespace = "ai.synheart.core.edge"
@@ -19,12 +27,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
-
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
-    }
 }
 
 dependencies {
@@ -32,7 +34,7 @@ dependencies {
     // phone SDK uses). Pulls SessionEngine + BiosignalSample +
     // HealthConnectBiosignalProvider — and transitively pulls
     // synheart-wear (HealthConnectAdapter), so no separate dep needed here.
-    implementation("ai.synheart:synheart-session:0.2.0")
+    implementation("ai.synheart:synheart-session:0.2.1")
 
     // Play Services Wearable Data Layer — consumed by relay/PhoneRelay.kt
     // (DataClient + MessageClient + NodeClient) and the WearableListenerService
@@ -42,6 +44,11 @@ dependencies {
     // JNA — FFI binding to synheart_core_edge_*.so (RuntimeBridge.kt).
     // ~2MB AAR; mandatory for the native runtime boundary.
     implementation("net.java.dev.jna:jna:5.14.0@aar")
+
+    // Jetpack Security — EncryptedFile (AES-256-GCM via Android Keystore) for
+    // encrypting the durable outbox artifacts + session manifests at rest (H3).
+    // The on-the-wire/JSON shape is unchanged; only the at-rest bytes differ.
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     // Provides `Tasks.await()` extension for Play Services tasks
@@ -57,38 +64,29 @@ dependencies {
     testImplementation("org.json:json:20240303")
 }
 
-publishing {
-    publications {
-        register<MavenPublication>("release") {
-            groupId = providers.gradleProperty("GROUP").get()
-            artifactId = providers.gradleProperty("POM_ARTIFACT_ID").get()
-            version = providers.gradleProperty("VERSION_NAME").get()
-
-            afterEvaluate { from(components["release"]) }
-
-            pom {
-                name.set(providers.gradleProperty("POM_NAME"))
-                description.set(providers.gradleProperty("POM_DESCRIPTION"))
-                url.set(providers.gradleProperty("POM_URL"))
-                licenses {
-                    license {
-                        name.set(providers.gradleProperty("POM_LICENSE_NAME"))
-                        url.set(providers.gradleProperty("POM_LICENSE_URL"))
-                    }
-                }
-                scm {
-                    url.set(providers.gradleProperty("POM_URL"))
-                }
-            }
-        }
+// Maven Central publishing via the Sonatype Central Portal. Coordinates,
+// POM name/description/url and the Apache-2.0 license come from the
+// POM_*/GROUP/VERSION_NAME values in gradle.properties (the plugin reads them
+// automatically). GPG signing is enabled; the in-memory key + passphrase and
+// the Central Portal credentials are supplied at release time via the
+// ORG_GRADLE_PROJECT_* / SIGNING_KEY environment variables set in the CI
+// workflow, so a local build without secrets still configures cleanly.
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, automaticRelease = true)
+    if (!System.getenv("SIGNING_KEY").isNullOrBlank()) {
+        signAllPublications()
     }
-}
-
-signing {
-    val signingKey: String? = System.getenv("SIGNING_KEY")
-    val signingPassword: String? = System.getenv("SIGNING_KEY_PASSWORD")
-    if (!signingKey.isNullOrBlank()) {
-        useInMemoryPgpKeys(signingKey, signingPassword)
-        sign(publishing.publications)
+    coordinates(
+        providers.gradleProperty("GROUP").get(),
+        providers.gradleProperty("POM_ARTIFACT_ID").get(),
+        providers.gradleProperty("VERSION_NAME").get(),
+    )
+    // name / description / url / license are populated automatically from the
+    // POM_*/GROUP/VERSION_NAME gradle.properties values; only the SCM url needs
+    // setting explicitly here.
+    pom {
+        scm {
+            url.set(providers.gradleProperty("POM_URL"))
+        }
     }
 }

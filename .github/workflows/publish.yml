@@ -1,13 +1,18 @@
 # Tag-driven release to Maven Central via the Sonatype Central Portal.
 #
+# Publishing is handled by the com.vanniktech.maven.publish plugin, which
+# provides the `publishAndReleaseToMavenCentral` task and reads the POM from
+# the POM_*/GROUP/VERSION_NAME values in gradle.properties.
+#
 # Required repository secrets:
 #   SONATYPE_USERNAME       — Central Portal user token name
 #   SONATYPE_PASSWORD       — Central Portal user token value
 #   SIGNING_KEY             — ASCII-armored GPG private key (gpg --armor --export-secret-keys KEYID)
 #   SIGNING_KEY_PASSWORD    — passphrase for SIGNING_KEY
 #
-# The Gradle build is expected to read these via environment variables and
-# configure the maven-publish + signing plugins accordingly.
+# These are mapped below to the ORG_GRADLE_PROJECT_* environment variables the
+# plugin consumes (mavenCentralUsername/Password, signingInMemoryKey + its
+# password).
 
 name: Release
 
@@ -36,10 +41,12 @@ jobs:
 
       - name: Publish to Maven Central
         env:
-          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          # Also exposed so build.gradle.kts can detect a signing key is present.
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache --stacktrace
 
       - name: Create GitHub Release

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Synheart AI Inc. and contributors.
+
 package ai.synheart.core.edge.models
 
 import org.json.JSONObject
@@ -7,11 +10,11 @@ data class ComputeProfile(
     val emitIntervalSec: Int = 5,
     /**
      * How the edge runtime's HSI should be reported relative to a paired
-     * phone (edge-tiering RFC §3.2). Forwarded to the native runtime as
-     * `compute_profile.edge_mode` in the FFI config JSON, where it controls
-     * the `session_role` stamped on `meta.synheart.compute`. Default
-     * [EdgeMode.CANONICAL] preserves pre-RFC behaviour (watch HSI is
-     * product-of-record).
+     * phone. Forwarded to the native runtime as `compute_profile.edge_mode`
+     * in the FFI config JSON, where it controls the `session_role` stamped on
+     * `meta.synheart.compute`. Default [EdgeMode.CANONICAL] reports the watch
+     * HSI as product-of-record. See docs/EDGE-WIRE-CONTRACT.md for the
+     * compute-provenance contract.
      */
     val edgeMode: EdgeMode = EdgeMode.CANONICAL,
 ) {
@@ -29,8 +32,8 @@ data class ComputeProfile(
 
 /**
  * How the watch's edge HSI should be reported relative to a paired phone.
- * Mirror of `EdgeMode` in `synheart-core-runtime`'s `SynheartConfig`. See
- * edge-tiering RFC §3.2.
+ * The wire form is sent to the native runtime as `compute_profile.edge_mode`;
+ * see docs/EDGE-WIRE-CONTRACT.md for the compute-provenance contract.
  */
 enum class EdgeMode {
     /** Edge runtime does not start. Watch streams raw samples to phone. */
@@ -45,7 +48,7 @@ enum class EdgeMode {
     fun toWire(): String = name.lowercase()
 
     companion object {
-        /** Parse the wire form used in JSON config + the §3.3 pairing advert. */
+        /** Parse the wire form used in the FFI config JSON + pairing advert. */
         fun fromWire(s: String): EdgeMode? = when (s.lowercase()) {
             "off" -> OFF
             "shadow" -> SHADOW
@@ -64,7 +67,7 @@ data class SessionConfig(
     val origin: SessionOrigin = SessionOrigin.PHONE,
     val kind: SessionKind = SessionKind.FOCUS,
 ) {
-    /** Delivery mode derived from origin (RFC §6). */
+    /** Delivery mode derived from origin. */
     val deliveryMode: DeliveryMode
         get() = if (origin == SessionOrigin.PHONE) DeliveryMode.REALTIME else DeliveryMode.PASSIVE_SYNC
 

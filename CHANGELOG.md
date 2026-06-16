@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-06-15
+
+### Added
+- `ComputeProfile.edgeMode` (`off` / `shadow` / `canonical`) forwarded to the
+  native runtime as `compute_profile.edge_mode`, stamping compute provenance
+  (`session_role`) on emitted HSI. Synced with the canonical wire contract and
+  the Swift edge SDK; default `canonical` preserves prior behaviour.
+- `hsi_version` carried on the HSI artifact envelope (extracted from the inner
+  payload) so consumers can validate the payload version without parsing it.
+  Tolerant fallback to a sentinel for older producers.
+- Observability guards: a dropped-frame counter driven by the native handle's
+  `last_error`, and a WARN when an emitted `hsi_version` falls outside the
+  supported set. No wire shape changes.
+- Multi-tenant persistence: `EdgeSessionManager`, `EdgeOutbox`, and `PhoneRelay`
+  now accept optional namespace parameters (prefs file / key / directory name)
+  defaulting to the current canonical values, so two SDK-based apps don't
+  collide on disk.
+
+### Security
+- Outbox artifacts and edge session manifests are now encrypted at rest via
+  Jetpack Security `EncryptedFile` (AES-256-GCM, Android Keystore master key).
+  The on-the-wire / JSON shape is unchanged; only the at-rest bytes differ.
+  Falls back to plaintext at rest only when the Keystore is unavailable.
+- Path-traversal hardening: `EdgeOutbox` and `EdgeSessionManager` reject any
+  artifact / session id that isn't a safe path token, so a phone-supplied id
+  can never escape the outbox / sessions directory.
+- Sender authentication on the exported `PhoneListenerService`: incoming
+  commands are dropped unless they originate from a currently-connected
+  (paired) Wear node, failing closed on any node-lookup error.
+
+### Changed
+- Durable outbox writes are now atomic (temp file + atomic rename), so a crash
+  mid-write can never leave a half-written artifact.
+- `RuntimeBridge.close()` is idempotent (guarded against double-free).
+- Publishing migrated to the `com.vanniktech.maven.publish` plugin, which
+  provides the `publishAndReleaseToMavenCentral` task the release workflow runs.
+- When no `EdgeSessionManager` is injected, the engine derives a per-instance
+  random runtime `subject_id` instead of a shared constant, so personalization
+  is never cross-contaminated across users.
+
+### Fixed
+- `SessionPreset.toJson()` now writes `edge_mode`, so a preset round-trips
+  losslessly through `ComputeProfile.fromJson`.
+
+### Removed
+- Dead `MotionAccumulator` utility (the engine pipes motion straight to the
+  runtime and never consumed it).
+
 ## [0.0.3] - 2026-05-26
 
 ### Fixed

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Synheart AI Inc. and contributors.
+
 package ai.synheart.core.edge.models
 
 import ai.synheart.core.edge.engine.EdgeSessionManager
@@ -23,7 +26,7 @@ data class SessionPreset(
         kind = kind,
     )
 
-    /** Create a standalone edge SessionConfig (RFC §4.2). */
+    /** Create a standalone edge SessionConfig. */
     fun toEdgeSessionConfig(sessionManager: EdgeSessionManager): SessionConfig = SessionConfig(
         sessionId = sessionManager.generateSessionId(),
         mode = mode,
@@ -43,6 +46,10 @@ data class SessionPreset(
         put("profile", JSONObject().apply {
             put("window_sec", profile.windowSec)
             put("emit_interval_sec", profile.emitIntervalSec)
+            // Include edge_mode so the profile round-trips losslessly through
+            // ComputeProfile.fromJson (which reads this key). Default is
+            // CANONICAL, written explicitly here.
+            put("edge_mode", profile.edgeMode.toWire())
         })
     }
 

@@ -2,13 +2,13 @@
 
 Light Synheart Core SDK for **Wear OS / Android Wear**. The full [`synheart-core-kotlin`](https://github.com/synheart-ai/synheart-core-kotlin) SDK is too heavy for a watch — this package ships the minimum needed to run an on-device session and relay results to a paired phone.
 
-**Status:** `0.0.3` — public API. Mirrors [`synheart-core-swift-edge`](https://github.com/synheart-ai/synheart-core-swift-edge) one-for-one (same engine surface, same state machine, same model types). See [docs.synheart.ai/synheart-core/edge](https://docs.synheart.ai/synheart-core/edge) for the cross-platform guide.
+**Status:** `0.0.4` — public API. Mirrors [`synheart-core-swift-edge`](https://github.com/synheart-ai/synheart-core-swift-edge) one-for-one (same engine surface, same state machine, same model types). See [docs.synheart.ai/synheart-core/edge](https://docs.synheart.ai/synheart-core/edge) for the cross-platform guide.
 
 ## Scope
 
 What's in (`ai.synheart.core.edge.*`):
 
-- **engine** — `WatchSessionEngine`, `EdgeSessionManager`, `EdgeOutbox`, `MotionAccumulator`, `RuntimeBridge`, `WatchSessionState`
+- **engine** — `WatchSessionEngine`, `EdgeSessionManager`, `EdgeOutbox`, `RuntimeBridge`, `WatchSessionState`
 - **sensor** — `MotionSensor` (SensorManager). HR comes from a `BiosignalProvider` (the host supplies one — typically `HealthServicesBiosignalProvider` wrapping Wear OS Health Services)
 - **relay** — `PhoneRelay`, `PhoneListenerService` (Wearable Data Layer)
 - **models** — `SessionConfig`, `SessionPreset`, `ComputeProfile`, `SessionEvent`, `EdgeTypes`
@@ -22,10 +22,12 @@ What's out (ships in `synheart-core-kotlin`, not here):
 
 ## Install
 
-Until the SDK publishes to Maven Central, consume via composite build:
+`ai.synheart:synheart-core-edge` is **not yet published to Maven Central** — a
+plain Maven coordinate will not resolve. Consume it via a Gradle composite
+build that substitutes the requested coordinate with this local checkout:
 
 ```kotlin
-// settings.gradle.kts
+// settings.gradle.kts — point SYNHEART_CORE_EDGE_LOCAL at your local checkout
 val coreEdge = providers.environmentVariable("SYNHEART_CORE_EDGE_LOCAL").orNull
 if (!coreEdge.isNullOrBlank()) {
     includeBuild(coreEdge)
@@ -33,12 +35,14 @@ if (!coreEdge.isNullOrBlank()) {
 
 // wear/build.gradle.kts
 dependencies {
+    // Resolved from the included build above (no published artifact yet).
     implementation("ai.synheart:synheart-core-edge")
-    implementation("ai.synheart:synheart-session:0.1.0")
+    // Session lifecycle + BiosignalProvider abstraction (published).
+    implementation("ai.synheart:synheart-session:0.2.1")
 }
 ```
 
-Targets: Wear OS 4 / API 33+. (Pixel Watch 1 is `armeabi-v7a` only — keep that ABI in your `:wear` jniLibs.)
+Targets: Wear OS 3.0+ / API 30+ (`minSdk 30`, `compileSdk 34`). The native runtime ships as `arm64-v8a` only — keep that ABI in your `:wear` jniLibs.
 
 ## Quickstart
 
@@ -80,7 +84,7 @@ sensors  →  WatchSessionEngine  →  RuntimeBridge (JNA) → synheart-core-run
 
 The native runtime binary (`libsynheart_core_runtime.so`) is loaded via JNA. When absent, the engine falls back to `STREAM` mode and surfaces raw samples via `bioSamples` for the host to relay. When present, the engine runs the edge HSI pipeline locally in `COMPUTE_LOCAL` mode.
 
-Build the `.so` with `--features edge` (not `--no-default-features` alone — that strips the `synheart_core_edge_*` exports) and drop into `wear/src/main/jniLibs/armeabi-v7a/`. The reference Life wear module includes a `:wear:vendorEdgeRuntime` Gradle task that shells out to `cargo ndk … --features edge` and vendors automatically when `SYNHEART_CORE_RUNTIME_LOCAL` is set.
+Build the `.so` with `--features edge` (not `--no-default-features` alone — that strips the `synheart_core_edge_*` exports) and drop into `wear/src/main/jniLibs/arm64-v8a/`. The reference Life wear module includes a `:wear:vendorEdgeRuntime` Gradle task that shells out to `cargo ndk … --features edge` and vendors automatically when `SYNHEART_CORE_RUNTIME_LOCAL` is set.
 
 ## Session API
 
