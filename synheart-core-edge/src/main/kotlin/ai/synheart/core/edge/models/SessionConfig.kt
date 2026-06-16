@@ -13,7 +13,8 @@ data class ComputeProfile(
      * phone. Forwarded to the native runtime as `compute_profile.edge_mode`
      * in the FFI config JSON, where it controls the `session_role` stamped on
      * `meta.synheart.compute`. Default [EdgeMode.CANONICAL] reports the watch
-     * HSI as product-of-record. See docs/EDGE-WIRE-CONTRACT.md for the
+     * HSI as product-of-record. See the Synheart Edge wire contract
+     * (EDGE-WIRE-CONTRACT.md in the synheart-edge repo) for the
      * compute-provenance contract.
      */
     val edgeMode: EdgeMode = EdgeMode.CANONICAL,
@@ -33,7 +34,8 @@ data class ComputeProfile(
 /**
  * How the watch's edge HSI should be reported relative to a paired phone.
  * The wire form is sent to the native runtime as `compute_profile.edge_mode`;
- * see docs/EDGE-WIRE-CONTRACT.md for the compute-provenance contract.
+ * see the Synheart Edge wire contract (EDGE-WIRE-CONTRACT.md in the
+ * synheart-edge repo) for the compute-provenance contract.
  */
 enum class EdgeMode {
     /** Edge runtime does not start. Watch streams raw samples to phone. */

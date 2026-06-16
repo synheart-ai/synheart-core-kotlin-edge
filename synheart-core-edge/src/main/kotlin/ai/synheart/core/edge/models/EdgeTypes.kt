@@ -17,7 +17,7 @@ enum class SessionOrigin { PHONE, EDGE }
 /** Session kinds backing the built-in presets. */
 enum class SessionKind { NAP, SLEEP, WORKOUT, FOCUS, BREATHING, DEEP_WORK }
 
-/** HSI artifact envelope. See docs/EDGE-WIRE-CONTRACT.md. */
+/** HSI artifact envelope. See EDGE-WIRE-CONTRACT.md in the synheart-edge repo. */
 data class HsiArtifactEnvelope(
     val artifactId: String,
     val sessionId: String,
@@ -26,7 +26,8 @@ data class HsiArtifactEnvelope(
     val schemaVersion: String,
     /**
      * Inner HSI payload version, extracted from [payloadJson]'s top-level
-     * `hsi_version` at [wrap] time (see docs/EDGE-WIRE-CONTRACT.md). Distinct from
+     * `hsi_version` at [wrap] time (see EDGE-WIRE-CONTRACT.md in the
+     * synheart-edge repo). Distinct from
      * [schemaVersion], which versions this envelope wrapper. Carried on the
      * wire so consumers can validate the payload version without parsing the
      * opaque [payloadJson]. Defaults to `"unknown"` when the payload can't be

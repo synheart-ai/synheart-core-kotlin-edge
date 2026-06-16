@@ -190,7 +190,7 @@ class WatchSessionEngineTest {
         // The envelope extracts the inner payload's top-level hsi_version and
         // re-emits it on the wire as a sibling of schema_version (the two are
         // distinct: wrapper version vs payload version). See
-        // docs/EDGE-WIRE-CONTRACT.md.
+        // EDGE-WIRE-CONTRACT.md in the synheart-edge repo.
         val envelope = HsiArtifactEnvelope.wrap(
             sessionId = "s",
             seq = 3,

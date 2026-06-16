@@ -19,7 +19,8 @@ import org.json.JSONObject
 
 /**
  * Watch-side relay: durable-outbox integration plus the watch→phone sync
- * protocol. See docs/EDGE-WIRE-CONTRACT.md for the message shapes and paths.
+ * protocol. See the Synheart Edge wire contract (EDGE-WIRE-CONTRACT.md in the
+ * synheart-edge repo) for the message shapes and paths.
  *
  * The cached-presets SharedPreferences file is namespaced so two SDK-based apps
  * on the same device don't collide. [prefsName] defaults to the canonical value
@@ -37,7 +38,8 @@ class PhoneRelay(
         // ── Wire protocol message paths (canonical contract) ────────────────
         // These `/synheart/...` paths are the canonical watch↔phone wire
         // protocol. They MUST match the phone-side receiver and the listener
-        // service below byte-for-byte — see docs/EDGE-WIRE-CONTRACT.md. A
+        // service below byte-for-byte — see EDGE-WIRE-CONTRACT.md in the
+        // synheart-edge repo. A
         // white-label fork that wants its own namespace must change these
         // values consistently on BOTH the watch and the phone (and the
         // OS-routed listener service), or messages will silently fail to route.

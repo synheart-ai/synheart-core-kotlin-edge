@@ -156,7 +156,7 @@ class WatchSessionEngine(
     /**
      * Whether raw [BiosignalSample]s are surfaced on [bioSamples] for the host
      * to relay to the phone for this session (compute-provenance contract; see
-     * docs/EDGE-WIRE-CONTRACT.md).
+     * EDGE-WIRE-CONTRACT.md in the synheart-edge repo).
      *
      * Decoupled from [mode] so SHADOW can BOTH compute locally (COMPUTE_LOCAL)
      * and stream raw samples. Resolved from `config.profile.edgeMode`:
