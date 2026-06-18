@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Synheart AI Inc. and contributors.
+
 package ai.synheart.core.edge.models
 
 import org.json.JSONArray
@@ -5,22 +8,32 @@ import org.json.JSONObject
 import java.security.MessageDigest
 import java.util.UUID
 
-/** RFC §6 — Delivery mode. */
+/** Delivery mode: realtime relay vs. deferred passive sync. */
 enum class DeliveryMode { REALTIME, PASSIVE_SYNC }
 
-/** RFC §4 — Session origin. */
+/** Where a session was initiated: the paired phone, or standalone on the watch. */
 enum class SessionOrigin { PHONE, EDGE }
 
-/** RFC §4.2.1 — Session kinds (presets). */
+/** Session kinds backing the built-in presets. */
 enum class SessionKind { NAP, SLEEP, WORKOUT, FOCUS, BREATHING, DEEP_WORK }
 
-/** RFC §6 — HSI artifact envelope. */
+/** HSI artifact envelope. See EDGE-WIRE-CONTRACT.md in the synheart-edge repo. */
 data class HsiArtifactEnvelope(
     val artifactId: String,
     val sessionId: String,
     val seq: Int,
     val createdAtMs: Long,
     val schemaVersion: String,
+    /**
+     * Inner HSI payload version, extracted from [payloadJson]'s top-level
+     * `hsi_version` at [wrap] time (see EDGE-WIRE-CONTRACT.md in the
+     * synheart-edge repo). Distinct from
+     * [schemaVersion], which versions this envelope wrapper. Carried on the
+     * wire so consumers can validate the payload version without parsing the
+     * opaque [payloadJson]. Defaults to `"unknown"` when the payload can't be
+     * parsed or omits the key. Additive — existing consumers ignore it.
+     */
+    val hsiVersion: String,
     val payloadHashSha256: String,
     val payloadJson: String,
     val deliveryMode: DeliveryMode,
@@ -34,6 +47,7 @@ data class HsiArtifactEnvelope(
         put("seq", seq)
         put("created_at_ms", createdAtMs)
         put("schema_version", schemaVersion)
+        put("hsi_version", hsiVersion)
         put("payload_hash_sha256", payloadHashSha256)
         put("payload_json", payloadJson)
         put("delivery_mode", deliveryMode.name)
@@ -42,6 +56,20 @@ data class HsiArtifactEnvelope(
     }
 
     companion object {
+        /** Sentinel for an HSI payload whose `hsi_version` can't be read. */
+        const val UNKNOWN_HSI_VERSION = "unknown"
+
+        /**
+         * Read the top-level `hsi_version` from an HSI payload JSON string,
+         * tolerating malformed/absent input by returning [UNKNOWN_HSI_VERSION].
+         */
+        private fun extractHsiVersion(hsiJson: String): String = try {
+            JSONObject(hsiJson).optString("hsi_version", "").takeIf { it.isNotEmpty() }
+                ?: UNKNOWN_HSI_VERSION
+        } catch (_: Exception) {
+            UNKNOWN_HSI_VERSION
+        }
+
         /** Create an envelope wrapping an HSI JSON payload. */
         fun wrap(
             sessionId: String,
@@ -61,6 +89,7 @@ data class HsiArtifactEnvelope(
                 seq = seq,
                 createdAtMs = System.currentTimeMillis(),
                 schemaVersion = "1.1",
+                hsiVersion = extractHsiVersion(hsiJson),
                 payloadHashSha256 = hashHex,
                 payloadJson = hsiJson,
                 deliveryMode = deliveryMode,
@@ -75,6 +104,10 @@ data class HsiArtifactEnvelope(
             seq = json.getInt("seq"),
             createdAtMs = json.getLong("created_at_ms"),
             schemaVersion = json.getString("schema_version"),
+            // Tolerant: older producers (and the persisted outbox) predate
+            // hsi_version. Fall back to the payload, then to the sentinel.
+            hsiVersion = json.optString("hsi_version", "").takeIf { it.isNotEmpty() }
+                ?: extractHsiVersion(json.optString("payload_json", "")),
             payloadHashSha256 = json.getString("payload_hash_sha256"),
             payloadJson = json.getString("payload_json"),
             deliveryMode = DeliveryMode.valueOf(json.getString("delivery_mode")),

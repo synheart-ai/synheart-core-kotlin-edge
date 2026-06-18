@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Synheart AI Inc. and contributors.
+
 package ai.synheart.core.edge.sensor
 
 import android.content.Context
@@ -11,7 +14,7 @@ import kotlinx.coroutines.flow.callbackFlow
 
 /**
  * Streams accelerometer data at ~25 Hz via Android SensorManager.
- * Open class to allow test fakes (matching HeartRateSensor pattern).
+ * Open class so tests can substitute a fake.
  */
 open class MotionSensor {
 

@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Synheart AI Inc. and contributors.
+
 package ai.synheart.core.edge.engine
 
 /**
- * RFC §8.1 — Watch session state machine.
+ * Watch session state machine.
  *
  * `PAUSED` is a host-driven transient state for breath / interrupt / call /
  * any other UX moment the user wants to suspend the session without ending
@@ -12,7 +15,7 @@ package ai.synheart.core.edge.engine
 enum class WatchSessionState {
     IDLE, STARTING, RUNNING, PAUSED, STOPPING, SYNCING, ERROR;
 
-    /** Valid state transitions per RFC §8.1 + pause extension. */
+    /** Valid state transitions, including the host-driven pause/resume path. */
     fun canTransitionTo(next: WatchSessionState): Boolean = when (this to next) {
         IDLE to STARTING,
         STARTING to RUNNING,

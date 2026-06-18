@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Synheart AI Inc. and contributors.
+
 package ai.synheart.core.edge.sensor
 
 data class MotionSample(
