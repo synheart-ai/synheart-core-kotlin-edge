@@ -1,8 +1,15 @@
-# synheart-core-edge (Kotlin)
+# Synheart Core Edge SDK — Kotlin
 
-Light Synheart Core SDK for **Wear OS / Android Wear**. The full [`synheart-core-kotlin`](https://github.com/synheart-ai/synheart-core-kotlin) SDK is too heavy for a watch — this package ships the minimum needed to run an on-device session and relay results to a paired phone.
+[![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)](https://github.com/synheart-ai/synheart-core-kotlin-edge)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1%2B-7F52FF.svg)](https://kotlinlang.org)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Status:** `0.0.4` — public API. Mirrors [`synheart-core-swift-edge`](https://github.com/synheart-ai/synheart-core-swift-edge) one-for-one (same engine surface, same state machine, same model types). See [docs.synheart.ai/synheart-core/edge](https://docs.synheart.ai/synheart-core/edge) for the cross-platform guide.
+> **Source-available.** This repository is open for reading, auditing, and
+> filing issues. We do **not** accept pull requests — see
+> [CONTRIBUTING.md](CONTRIBUTING.md) for the rationale and how to contribute
+> via issues. Security reports go through [SECURITY.md](SECURITY.md).
+
+Light Synheart Core SDK for **Wear OS / Android Wear** — the minimum needed to run an on-device session and relay results to a paired phone. The full [`synheart-core-kotlin`](https://github.com/synheart-ai/synheart-core-kotlin) SDK is too heavy for a watch. See [docs.synheart.ai/synheart-core/edge](https://docs.synheart.ai/synheart-core/edge) for the cross-platform guide.
 
 ## Scope
 
