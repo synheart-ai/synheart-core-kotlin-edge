@@ -114,45 +114,16 @@ via `startSession(config, requestedMode)`.
 - Maven coordinates: `ai.synheart:synheart-core-edge:0.0.1`
 - `com.android.library`, `compileSdk 34`, `minSdk 30` (Wear OS 3.0),
   Kotlin 2.1.0, AGP 8.7.3
-- Source repackaged from `ai.synheart.wear.watch.*` (in the reference app)
-  to `ai.synheart.core.edge.*`
-- Sonatype Central Portal publish wired through `publish.yml`; credentials
-  must be added to GitHub secrets before `Release` runs
-
-### Code hygiene at extraction
-
-Pulled out of the reference watch app and **not carried forward** into this
-SDK:
-
-- `MotionAccumulator` (local RMS-g aggregation) — runtime owns it.
-- In-process HR / RR sample buffers (`hrSamples`, `rrIntervals`) and the
-  local computation of `hr_mean_bpm`, `hr_sdnn_ms`, `rmssd_ms` — runtime
-  emits authoritative values in HSI JSON.
-- Bespoke `HeartRateSensor` (Health Services-only) — replaced by the
-  `BiosignalProvider` abstraction from `synheart-session-kotlin`.
-- `sensor/HrSample.kt` — replaced by `BiosignalSample` from
-  `ai.synheart.session`.
-- Per-frame metric synthesis from accumulated buffers — replaced by passing
-  the runtime's HSI dict through unchanged.
+- Source repackaged to `ai.synheart.core.edge.*`
 
 ### Notes
 
-- Kotlin classes are public by default, so the library is importable as
-  soon as the artifact is published. Scope refinement (marking internals
-  as `internal`) lands in `0.0.2`.
+- The native runtime owns motion aggregation (RMS-g) and the HR / RR
+  statistics (`hr_mean_bpm`, `hr_sdnn_ms`, `rmssd_ms`); the SDK passes the
+  runtime's HSI dict through unchanged rather than computing metrics itself.
+- HR sources are supplied through the `BiosignalProvider` abstraction from
+  `synheart-session-kotlin` (`BiosignalSample`), not a bespoke sensor type.
 - `WatchSessionEngine` constructor takes
   `provider: ai.synheart.session.BiosignalProvider` as a required
   argument. Use `MockBiosignalProvider` from `synheart-session-kotlin`
   for unit tests.
-
-### Planned (0.0.2)
-
-- Drive session lifecycle through `synheart.session.SessionEngine`
-  directly rather than the parallel timer-driven loop. Connect runtime
-  HSI output to `engine.ingestHsiMetrics(...)` so frames carry
-  authoritative metrics from native code.
-- API surface review — explicitly mark internal types as `internal`,
-  settle on the v0 public surface.
-- CI binary-size assertion to enforce the 500 KB AAR budget.
-- Verify build resolves once `ai.synheart:synheart-session:0.1.0` and
-  `ai.synheart:synheart-wear:0.3.0` are published to Maven Central.

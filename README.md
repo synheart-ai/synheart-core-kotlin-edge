@@ -76,7 +76,7 @@ class WatchApp : Application() {
 }
 ```
 
-`HealthServicesBiosignalProvider` (a `BiosignalProvider` impl that wraps Wear OS `MeasureClient`) is provided by the host — not the SDK — because Wear platform binding is the host's choice. The reference [Life wear module](https://github.com/synheart-ai/synheart-life-mobile-app/tree/main/apps/synheart_life/android/wear) has one you can copy.
+`HealthServicesBiosignalProvider` (a `BiosignalProvider` impl that wraps Wear OS `MeasureClient`) is provided by the host — not the SDK — because Wear platform binding is the host's choice. The reference [Wear OS app](https://github.com/synheart-ai/synheart-edge-watch-android) has one you can copy.
 
 Swap in a custom HR source the same way (BLE chest-strap, mock for tests, etc.) by implementing `ai.synheart.session.BiosignalProvider`.
 
@@ -91,7 +91,7 @@ sensors  →  WatchSessionEngine  →  RuntimeBridge (JNA) → synheart-core-run
 
 The native runtime binary (`libsynheart_core_runtime.so`) is loaded via JNA. When absent, the engine falls back to `STREAM` mode and surfaces raw samples via `bioSamples` for the host to relay. When present, the engine runs the edge HSI pipeline locally in `COMPUTE_LOCAL` mode.
 
-Build the `.so` with `--features edge` (not `--no-default-features` alone — that strips the `synheart_core_edge_*` exports) and drop into `wear/src/main/jniLibs/arm64-v8a/`. The reference Life wear module includes a `:wear:vendorEdgeRuntime` Gradle task that shells out to `cargo ndk … --features edge` and vendors automatically when `SYNHEART_CORE_RUNTIME_LOCAL` is set.
+Build the `.so` with `cargo ndk … --features edge` (not `--no-default-features` alone — that strips the `synheart_core_edge_*` exports) and drop into `wear/src/main/jniLibs/arm64-v8a/`.
 
 ## Session API
 
