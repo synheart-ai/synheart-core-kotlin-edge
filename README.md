@@ -83,7 +83,7 @@ Swap in a custom HR source the same way (BLE chest-strap, mock for tests, etc.) 
 ## Architecture
 
 ```
-sensors  →  WatchSessionEngine  →  RuntimeBridge (JNA) → synheart-core-runtime
+sensors  →  WatchSessionEngine  →  RuntimeBridge (JNA) → native edge runtime
                   │
                   ├──→  EdgeOutbox    (local artifact persistence)
                   └──→  PhoneRelay    (Wearable Data Layer)

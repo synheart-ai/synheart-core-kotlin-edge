@@ -73,7 +73,7 @@ and recomposed against the same sibling SDKs the phone SDK depends on.
 
 ### Architecture
 
-This SDK is a **thin FFI wrapper** around `synheart-core-runtime`. All math
+This SDK is a **thin FFI wrapper** around the native edge runtime. All math
 and signal derivation runs in the native runtime, not in Kotlin. The watch
 SDK is just: sensor capture → push raw samples (`pushHr` / `pushRr` /
 `pushAccel`) to runtime → outbox runtime-emitted artifacts → relay to phone.
@@ -91,7 +91,7 @@ SDK is just: sensor capture → push raw samples (`pushHr` / `pushRr` /
 - **Session lifecycle** is owned by `WatchSessionEngine` (state machine,
   timers, outbox). A future release will move lifecycle ownership into
   `synheart.session.SessionEngine` directly.
-- **Native runtime** (`synheart-core-runtime`) is loaded via JNA; no Maven
+- **Native edge runtime** is loaded via JNA; no Maven
   dependency declared. Apps must bundle the appropriate `.so` files.
 
 ### Engine modes
@@ -101,7 +101,7 @@ SDK is just: sensor capture → push raw samples (`pushHr` / `pushRr` /
 - `STREAM` — raw `BiosignalSample`s are surfaced via
   `bioSamples: SharedFlow<BiosignalSample>` for the host app to relay to
   the paired phone. Runtime not loaded.
-- `COMPUTE_LOCAL` — raw samples piped to `synheart-core-runtime` via FFI;
+- `COMPUTE_LOCAL` — raw samples piped to the native edge runtime via FFI;
   HSI artifacts emitted by the runtime are persisted into `EdgeOutbox` and
   relayed to phone.
 
