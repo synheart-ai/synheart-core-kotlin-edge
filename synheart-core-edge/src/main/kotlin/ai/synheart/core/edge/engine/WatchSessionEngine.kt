@@ -20,7 +20,7 @@ enum class EngineMode {
      *  [WatchSessionEngine.bioSamples] for the host app to relay to the
      *  paired phone. The on-device runtime is not loaded. */
     STREAM,
-    /** `synheart-core-runtime` runs locally; raw samples are pushed to FFI
+    /** the native edge runtime runs locally; raw samples are pushed to FFI
      *  and HSI artifacts emitted by the runtime are persisted + relayed. */
     COMPUTE_LOCAL,
 }
@@ -185,7 +185,7 @@ class WatchSessionEngine(
 
     /**
      * Start a session. If [requestedMode] is null the engine resolves it: try
-     * to load `synheart-core-runtime`; if available, run [EngineMode.COMPUTE_LOCAL];
+     * to load the native edge runtime; if available, run [EngineMode.COMPUTE_LOCAL];
      * otherwise fall back to [EngineMode.STREAM].
      */
     fun startSession(config: SessionConfig, requestedMode: EngineMode? = null) {

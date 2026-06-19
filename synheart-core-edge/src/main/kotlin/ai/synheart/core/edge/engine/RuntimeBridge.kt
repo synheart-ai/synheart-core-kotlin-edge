@@ -9,7 +9,7 @@ import com.sun.jna.Pointer
 import org.json.JSONObject
 
 /**
- * JNA interface to the synheart-core-runtime native library (edge pipeline).
+ * JNA interface to the native edge runtime library (edge pipeline).
  *
  * All methods returning [Pointer] allocate heap memory that MUST be freed
  * with [synheart_core_edge_free_string]. Returns null on error.
@@ -94,7 +94,7 @@ internal interface RuntimeHandle {
 }
 
 /**
- * Kotlin wrapper around the synheart-core-runtime edge C ABI.
+ * Kotlin wrapper around the native edge runtime C ABI.
  *
  * Use [createIfAvailable] to attempt loading. Returns `null` if the native
  * library is not bundled, and the caller falls back gracefully.
