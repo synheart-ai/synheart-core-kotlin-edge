@@ -24,6 +24,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub Release for the tag
     steps:
       - uses: actions/checkout@v4
 
