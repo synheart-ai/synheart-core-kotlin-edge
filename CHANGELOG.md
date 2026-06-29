@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+- `PhoneRelay` caches the connected-node lookup (30 s TTL) instead of querying
+  `NodeClient.connectedNodes` on every message. Live HR / biosignal samples
+  (~1 Hz) previously incurred a binder round-trip per sample; reachability
+  checks still force a refresh so a just-connected phone is seen immediately.
+- `MotionSensor` now registers the accelerometer at an explicit ~25 Hz (the
+  SDK's target rate) instead of `SENSOR_DELAY_GAME` (~50 Hz), and requests up
+  to 1 s of hardware FIFO batching (`maxReportLatencyUs`) so the application
+  processor can stay asleep between bursts. Each sample's timestamp is now
+  derived from the hardware event time rather than delivery time, so batched
+  bursts stay correctly spaced in real time.
+
 ## [0.0.4] - 2026-06-15
 
 ### Added

@@ -5,15 +5,19 @@ package ai.synheart.core.edge.relay
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.SystemClock
 import ai.synheart.core.edge.engine.EdgeOutbox
 import ai.synheart.core.edge.engine.EdgeSessionManager
 import ai.synheart.core.edge.models.*
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.Node
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 
@@ -56,6 +60,14 @@ class PhoneRelay(
         /** Default SharedPreferences file used to cache synced presets. */
         const val DEFAULT_PREFS_NAME = "synheart_presets"
         private const val PREFS_KEY = "cached_presets_json"
+
+        /**
+         * How long a connected-node lookup is reused before re-querying. Node
+         * membership is stable within a session, so 30 s collapses ~1 Hz
+         * per-sample IPC into ~1 lookup / 30 s. A reconnection is picked up on
+         * the next reachability refresh (resume) or within this window.
+         */
+        private const val NODE_CACHE_TTL_MS = 30_000L
     }
 
     private val messageClient: MessageClient = Wearable.getMessageClient(context)
@@ -96,24 +108,56 @@ class PhoneRelay(
     private val _phoneReachable = MutableStateFlow(false)
     val phoneReachable: StateFlow<Boolean> = _phoneReachable.asStateFlow()
 
+    // ── Connected-node cache ────────────────────────────────────────────────
+    // The connected-node set was previously queried (`nodeClient.connectedNodes
+    // .await()`, a binder/IPC round-trip) on EVERY message — including live HR /
+    // biosignal samples at ~1 Hz. Node membership changes rarely during a
+    // session, so we cache it with a short TTL: one lookup per [NODE_CACHE_TTL_MS]
+    // instead of one per sample. This is the single biggest avoidable wake/IPC
+    // pattern during a running session. Reachability checks force a refresh so
+    // the UI/origin decision still sees fresh state on resume.
+    private val nodeCacheMutex = Mutex()
+    @Volatile private var cachedNodes: List<Node> = emptyList()
+    @Volatile private var cachedNodesAtMs: Long = 0L
+    @Volatile private var cachedNodesValid: Boolean = false
+
+    private suspend fun connectedNodesCached(forceRefresh: Boolean = false): List<Node> {
+        val now = SystemClock.elapsedRealtime()
+        if (!forceRefresh && cachedNodesValid && (now - cachedNodesAtMs) < NODE_CACHE_TTL_MS) {
+            return cachedNodes
+        }
+        return nodeCacheMutex.withLock {
+            val t = SystemClock.elapsedRealtime()
+            if (!forceRefresh && cachedNodesValid && (t - cachedNodesAtMs) < NODE_CACHE_TTL_MS) {
+                return@withLock cachedNodes
+            }
+            val nodes = try {
+                nodeClient.connectedNodes.await()
+            } catch (e: Exception) {
+                android.util.Log.w("PhoneRelay", "connectedNodes lookup failed: ${e.message}")
+                emptyList()
+            }
+            cachedNodes = nodes
+            cachedNodesAtMs = SystemClock.elapsedRealtime()
+            cachedNodesValid = true
+            nodes
+        }
+    }
+
     /**
      * Query connected Wear nodes and update [phoneReachable]. Call on
      * resume / before deciding session origin. Returns the fresh value.
+     * Forces a node-cache refresh so a just-connected phone is seen immediately.
      */
     suspend fun refreshReachability(): Boolean {
-        val reachable = try {
-            nodeClient.connectedNodes.await().isNotEmpty()
-        } catch (e: Exception) {
-            android.util.Log.w("PhoneRelay", "refreshReachability failed: ${e.message}")
-            false
-        }
+        val reachable = connectedNodesCached(forceRefresh = true).isNotEmpty()
         _phoneReachable.value = reachable
         return reachable
     }
 
     /** Send a session event to the connected phone. */
     suspend fun sendEvent(event: SessionEvent) {
-        val nodes = nodeClient.connectedNodes.await()
+        val nodes = connectedNodesCached()
         val type = when (event) {
             is SessionEvent.Started -> "session_started"
             is SessionEvent.Frame -> "session_frame"
@@ -148,7 +192,7 @@ class PhoneRelay(
 
     /** Send a real-time HR sample to the phone. */
     suspend fun sendHrSample(json: JSONObject) {
-        val nodes = nodeClient.connectedNodes.await()
+        val nodes = connectedNodesCached()
         val payload = json.toString().toByteArray(Charsets.UTF_8)
         for (node in nodes) {
             try {
@@ -165,7 +209,7 @@ class PhoneRelay(
      * reconstructs HRV from the windowed stream.
      */
     suspend fun sendBiosignalSample(json: JSONObject) {
-        val nodes = nodeClient.connectedNodes.await()
+        val nodes = connectedNodesCached()
         val payload = json.toString().toByteArray(Charsets.UTF_8)
         for (node in nodes) {
             try {
@@ -176,7 +220,7 @@ class PhoneRelay(
 
     /** Send an artifact envelope with dedicated path for reliability. */
     suspend fun sendArtifact(envelope: HsiArtifactEnvelope) {
-        val nodes = nodeClient.connectedNodes.await()
+        val nodes = connectedNodesCached()
         val payload = envelope.toJson().toString().toByteArray(Charsets.UTF_8)
         for (node in nodes) {
             try {
