@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-06-29
+
 ### Performance
 - `PhoneRelay` caches the connected-node lookup (30 s TTL) instead of querying
   `NodeClient.connectedNodes` on every message. Live HR / biosignal samples
