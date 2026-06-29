@@ -8,6 +8,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.SystemClock
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -17,6 +18,17 @@ import kotlinx.coroutines.flow.callbackFlow
  * Open class so tests can substitute a fake.
  */
 open class MotionSensor {
+
+    private companion object {
+        // Explicit ~25 Hz sampling (the SDK's target rate) instead of
+        // SENSOR_DELAY_GAME (~50 Hz), which over-sampled 2× beyond spec.
+        const val SAMPLING_PERIOD_US = 40_000 // 25 Hz
+        // Let the sensor hardware FIFO batch ~1 s of samples and deliver them in
+        // a burst so the application processor can stay asleep between bursts
+        // instead of waking every 40 ms. This is the real Doze/standby battery
+        // win; devices without an accel FIFO ignore it and deliver live.
+        const val MAX_REPORT_LATENCY_US = 1_000_000 // 1 s
+    }
 
     private var sensorManager: SensorManager? = null
     private var listener: SensorEventListener? = null
@@ -46,7 +58,12 @@ open class MotionSensor {
                 val z = event.values[2].toDouble() / SensorManager.GRAVITY_EARTH
                 trySend(
                     MotionSample(
-                        timestampMs = System.currentTimeMillis(),
+                        // Derive each sample's wall-clock time from the hardware
+                        // event timestamp (boot-nanos), NOT delivery time. With
+                        // FIFO batching a whole burst arrives at once, so
+                        // System.currentTimeMillis() at delivery would collapse
+                        // the batch onto ~one instant and corrupt the time series.
+                        timestampMs = eventTimestampToEpochMs(event.timestamp),
                         x = x,
                         y = y,
                         z = z,
@@ -60,13 +77,30 @@ open class MotionSensor {
         }
 
         listener = sensorListener
-        // SENSOR_DELAY_GAME ≈ 20ms (~50 Hz), closest standard rate to 25 Hz
-        manager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+        // ~25 Hz with up to 1 s of hardware FIFO batching (see companion).
+        manager.registerListener(
+            sensorListener,
+            accelerometer,
+            SAMPLING_PERIOD_US,
+            MAX_REPORT_LATENCY_US,
+        )
 
         awaitClose {
             manager.unregisterListener(sensorListener)
             listener = null
         }
+    }
+
+    /**
+     * Convert a SensorEvent's hardware timestamp (nanoseconds on the
+     * SystemClock.elapsedRealtimeNanos / boot timebase) to epoch millis by
+     * anchoring against the current wall clock. Keeps batched samples correctly
+     * spaced in real time.
+     */
+    private fun eventTimestampToEpochMs(eventNanos: Long): Long {
+        val bootNanos = SystemClock.elapsedRealtimeNanos()
+        val ageMs = (bootNanos - eventNanos) / 1_000_000
+        return System.currentTimeMillis() - ageMs
     }
 
     /** Stop streaming. */
