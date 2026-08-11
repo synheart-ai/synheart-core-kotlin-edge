@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `SessionKind.KEYBOARD` and a `default_keyboard_30` preset (30 min, 60 s
+  window / 10 s emits) so a typing block can be started from the watch without
+  touching the phone. Consumers that map `session_kind` through a closed
+  vocabulary need the new value added before it becomes visible to them.
+
+### Fixed
+- `HsiArtifactEnvelope.fromJson` and `SessionManifest.fromJson` resolved
+  `SessionKind` with a bare `valueOf`, so a persisted artifact or manifest
+  naming a kind the running build doesn't know threw instead of parsing -
+  stalling an outbox drain after a downgrade, or once a peer ships a kind this
+  build predates. Both are tolerant now: the (nullable) envelope kind degrades
+  to `null`, the (non-null) manifest kind to `FOCUS`.
+
 ## [0.0.5] - 2026-06-29
 
 ### Performance

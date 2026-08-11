@@ -14,8 +14,19 @@ enum class DeliveryMode { REALTIME, PASSIVE_SYNC }
 /** Where a session was initiated: the paired phone, or standalone on the watch. */
 enum class SessionOrigin { PHONE, EDGE }
 
-/** Session kinds backing the built-in presets. */
-enum class SessionKind { NAP, SLEEP, WORKOUT, FOCUS, BREATHING, DEEP_WORK }
+/**
+ * Session kinds backing the built-in presets.
+ *
+ * Append only - never reorder or rename. The value crosses the wire by name as
+ * `session_kind` in [HsiArtifactEnvelope] and as `kind` in a session manifest,
+ * so a rename orphans artifacts already persisted in a watch outbox.
+ *
+ * Every reader resolves unknown names tolerantly (see the `valueOf` call sites
+ * in this file and in `EdgeSessionManager`), so a watch running a newer build
+ * than its phone - or an outbox drained after a downgrade - degrades to an
+ * unknown/default kind instead of throwing mid-drain.
+ */
+enum class SessionKind { NAP, SLEEP, WORKOUT, FOCUS, BREATHING, DEEP_WORK, KEYBOARD }
 
 /** HSI artifact envelope. See EDGE-WIRE-CONTRACT.md in the synheart-edge repo. */
 data class HsiArtifactEnvelope(
@@ -112,7 +123,12 @@ data class HsiArtifactEnvelope(
             payloadJson = json.getString("payload_json"),
             deliveryMode = DeliveryMode.valueOf(json.getString("delivery_mode")),
             sessionOrigin = SessionOrigin.valueOf(json.getString("session_origin")),
-            sessionKind = json.optString("session_kind").takeIf { it.isNotEmpty() }?.let { SessionKind.valueOf(it) },
+            // Tolerant by name: `sessionKind` is nullable, so an unrecognised
+            // kind degrades to "unknown" rather than throwing and stalling an
+            // outbox drain. Mapping it to FOCUS instead would be worse - it
+            // would silently mislabel the artifact.
+            sessionKind = json.optString("session_kind").takeIf { it.isNotEmpty() }
+                ?.let { runCatching { SessionKind.valueOf(it) }.getOrNull() },
         )
     }
 }

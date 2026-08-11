@@ -80,6 +80,15 @@ data class SessionPreset(
                 durationSec = 1800, profile = ComputeProfile(windowSec = 30, emitIntervalSec = 5),
                 kind = SessionKind.WORKOUT,
             ),
+            // A typing block, startable from the watch so the wearer doesn't
+            // have to touch the phone to bracket one. 10 s emits rather than the
+            // 5 s the short presets use: across a full 30 minutes that halves
+            // the artifact count (180 vs 360) for a session nobody watches live.
+            SessionPreset(
+                id = "default_keyboard_30", label = "Keyboard 30 min", mode = "keyboard",
+                durationSec = 1800, profile = ComputeProfile(windowSec = 60, emitIntervalSec = 10),
+                kind = SessionKind.KEYBOARD,
+            ),
         )
 
         fun fromJson(json: JSONObject): SessionPreset {
