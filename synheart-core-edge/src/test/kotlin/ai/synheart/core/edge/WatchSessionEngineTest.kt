@@ -526,6 +526,39 @@ class WatchSessionEngineTest {
         advanceUntilIdle()
         job.cancel()
     }
+
+    @Test
+    fun `KEYBOARD preset is a 30 minute session`() {
+        val keyboard = SessionPreset.defaults.single { it.kind == SessionKind.KEYBOARD }
+        assertEquals(1800, keyboard.durationSec)
+        assertEquals("keyboard", keyboard.mode)
+        // The kind name is what crosses the wire and what downstream closed
+        // vocabularies key off - pin it so a rename can't pass silently.
+        assertEquals("KEYBOARD", keyboard.kind.name)
+    }
+
+    @Test
+    fun `envelope tolerates a session_kind this build does not know`() {
+        val json = HsiArtifactEnvelope.wrap(
+            sessionId = "s",
+            seq = 1,
+            hsiJson = """{"hsi_version":"1.3","axes":{}}""",
+            deliveryMode = DeliveryMode.REALTIME,
+            origin = SessionOrigin.EDGE,
+            kind = SessionKind.KEYBOARD,
+        ).toJson()
+
+        // Stands in for an artifact written by a build shipping a kind this one
+        // predates - e.g. an outbox drained after a downgrade.
+        json.put("session_kind", "TELEPATHY")
+
+        val parsed = HsiArtifactEnvelope.fromJson(json)
+        assertNull("unknown kind must degrade to null, not throw", parsed.sessionKind)
+        // The rest of the envelope must survive intact - the point is that the
+        // artifact still drains rather than wedging the outbox.
+        assertEquals("s", parsed.sessionId)
+        assertEquals(SessionOrigin.EDGE, parsed.sessionOrigin)
+    }
 }
 
 /** Tiny helpers so the test reads the engine mode without widening API. */

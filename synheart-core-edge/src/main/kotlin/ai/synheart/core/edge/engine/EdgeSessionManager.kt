@@ -89,7 +89,12 @@ class EdgeSessionManager(
         companion object {
             fun fromJson(json: JSONObject): SessionManifest = SessionManifest(
                 sessionId = json.getString("session_id"),
-                kind = SessionKind.valueOf(json.getString("kind")),
+                // Tolerant by name, matching SessionPreset/SessionConfig: a
+                // manifest written by a newer build must stay readable after a
+                // downgrade. `kind` is non-null here, so an unknown name lands
+                // on FOCUS rather than failing the whole manifest.
+                kind = runCatching { SessionKind.valueOf(json.getString("kind")) }
+                    .getOrDefault(SessionKind.FOCUS),
                 startMs = json.getLong("start_ms"),
                 endMs = if (json.has("end_ms")) json.getLong("end_ms") else null,
                 schemaVersion = json.optString("schema_version", "1.1"),
