@@ -275,7 +275,13 @@ class WatchSessionEngine(
 
         // Emit started
         scope.launch {
-            _events.emit(SessionEvent.Started(sessionId = config.sessionId, startedAtMs = startedAtMs))
+            _events.emit(SessionEvent.Started(
+                sessionId = config.sessionId,
+                startedAtMs = startedAtMs,
+                origin = config.origin,
+                kind = config.kind,
+                durationTargetSec = config.durationSec,
+            ))
         }
 
         transition(WatchSessionState.RUNNING)
@@ -822,6 +828,9 @@ class WatchSessionEngine(
                 sessionId = config.sessionId,
                 durationActualSec = durationActual,
                 metrics = metrics,
+                origin = config.origin,
+                kind = config.kind,
+                durationTargetSec = config.durationSec,
             ))
         }
 
