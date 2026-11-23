@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, dev]
 
+# Read-only token: these jobs only check out, build and test.
+permissions:
+  contents: read
+
 jobs:
   build-test:
     name: Build & Test
