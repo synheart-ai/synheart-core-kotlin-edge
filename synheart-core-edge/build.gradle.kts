@@ -34,7 +34,7 @@ dependencies {
     // phone SDK uses). Pulls SessionEngine + BiosignalSample +
     // HealthConnectBiosignalProvider — and transitively pulls
     // synheart-wear (HealthConnectAdapter), so no separate dep needed here.
-    implementation("ai.synheart:synheart-session:0.2.1")
+    implementation("ai.synheart:synheart-session:0.4.0")
 
     // Play Services Wearable Data Layer — consumed by relay/PhoneRelay.kt
     // (DataClient + MessageClient + NodeClient) and the WearableListenerService
@@ -43,20 +43,20 @@ dependencies {
 
     // JNA — FFI binding to synheart_core_edge_*.so (RuntimeBridge.kt).
     // ~2MB AAR; mandatory for the native runtime boundary.
-    implementation("net.java.dev.jna:jna:5.14.0@aar")
+    implementation("net.java.dev.jna:jna:5.19.1@aar")
 
     // Jetpack Security — EncryptedFile (AES-256-GCM via Android Keystore) for
     // encrypting the durable outbox artifacts + session manifests at rest (H3).
     // The on-the-wire/JSON shape is unchanged; only the at-rest bytes differ.
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.1.0")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     // Provides `Tasks.await()` extension for Play Services tasks
     // consumed by relay/PhoneRelay.kt.
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     // Real org.json impl for unit tests — the android.jar version is a stub
     // that throws RuntimeException("Stub!") on every method call. Without
     // this, any test that constructs a JSONObject (e.g. ComputeProfile
