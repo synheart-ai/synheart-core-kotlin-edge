@@ -1,5 +1,3 @@
-import com.vanniktech.maven.publish.SonatypeHost
-
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -72,7 +70,7 @@ dependencies {
 // ORG_GRADLE_PROJECT_* / SIGNING_KEY environment variables set in the CI
 // workflow, so a local build without secrets still configures cleanly.
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, automaticRelease = true)
+    publishToMavenCentral(automaticRelease = true)
     if (!System.getenv("SIGNING_KEY").isNullOrBlank()) {
         signAllPublications()
     }
